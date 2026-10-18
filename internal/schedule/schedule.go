@@ -19,28 +19,17 @@ type Item struct {
 
 // Day は1日分の結果。
 type Day struct {
-	Date      string `json:"date"`    // 2026-10-08
-	Weekday   int    `json:"weekday"` // 0=日 .. 6=土
-	IsHoliday bool   `json:"is_holiday"`
-	Items     []Item `json:"items"`
+	Date    string `json:"date"`    // 2026-10-08
+	Weekday int    `json:"weekday"` // 0=日 .. 6=土
+	Items   []Item `json:"items"`
 }
 
-// HolidayFunc はその日が祝日かを返す。祝日テーブルを入れるまでは常に false を渡す。
-type HolidayFunc func(time.Time) bool
-
-// NoHolidays は祝日を考慮しない HolidayFunc。
-func NoHolidays(time.Time) bool { return false }
-
 // ItemsOn は日付 d に出せるごみ種別を返す。同じ種別は1つにまとめる。
-func ItemsOn(rules []repository.CollectionRule, d time.Time, isHoliday HolidayFunc) []Item {
-	holiday := isHoliday(d)
+func ItemsOn(rules []repository.CollectionRule, d time.Time) []Item {
 	seen := map[string]bool{}
 	items := []Item{}
 	for _, r := range rules {
 		if !r.Rule().Matches(d) {
-			continue
-		}
-		if holiday && !r.CollectsOnHoliday {
 			continue
 		}
 		if seen[r.Category] {
@@ -53,34 +42,18 @@ func ItemsOn(rules []repository.CollectionRule, d time.Time, isHoliday HolidayFu
 }
 
 // Expand は from から to まで(両端含む)の各日について ItemsOn を計算する。
-func Expand(rules []repository.CollectionRule, from, to time.Time, isHoliday HolidayFunc) []Day {
+func Expand(rules []repository.CollectionRule, from, to time.Time) []Day {
 	from = Truncate(from)
 	to = Truncate(to)
 	var days []Day
 	for d := from; !d.After(to); d = d.AddDate(0, 0, 1) {
 		days = append(days, Day{
-			Date:      d.Format("2006-01-02"),
-			Weekday:   int(d.Weekday()),
-			IsHoliday: isHoliday(d),
-			Items:     ItemsOn(rules, d, isHoliday),
+			Date:    d.Format("2006-01-02"),
+			Weekday: int(d.Weekday()),
+			Items:   ItemsOn(rules, d),
 		})
 	}
 	return days
-}
-
-// Next は from 以降(from 当日を含む)で category が最初に収集される日を返す。
-// maxDays 日先まで探して見つからなければ ok=false。
-func Next(rules []repository.CollectionRule, from time.Time, category string, maxDays int, isHoliday HolidayFunc) (time.Time, bool) {
-	d := Truncate(from)
-	for i := 0; i <= maxDays; i++ {
-		for _, it := range ItemsOn(rules, d, isHoliday) {
-			if it.Category == category {
-				return d, true
-			}
-		}
-		d = d.AddDate(0, 0, 1)
-	}
-	return time.Time{}, false
 }
 
 // Truncate は時刻を落として JST の 0 時にする。

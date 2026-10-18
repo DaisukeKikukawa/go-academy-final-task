@@ -12,15 +12,14 @@ import (
 
 // CollectionRule は collection_rules の1行に、ごみ種別の共通コードと表示名を付けたもの。
 type CollectionRule struct {
-	ID                int64  `json:"id"`
-	AreaID            int    `json:"area_id"`
-	Category          string `json:"category"`      // burnable など
-	CategoryName      string `json:"category_name"` // 燃やすごみ
-	Weekday           int    `json:"weekday"`       // 0=日 .. 6=土
-	Frequency         string `json:"frequency"`     // weekly / nth_week / biweekly
-	NthWeeks          []int  `json:"nth_weeks,omitempty"`
-	CollectsOnHoliday bool   `json:"collects_on_holiday"`
-	RawText           string `json:"raw_text"`
+	ID           int64  `json:"id"`
+	AreaID       int    `json:"area_id"`
+	Category     string `json:"category"`      // burnable など
+	CategoryName string `json:"category_name"` // 燃やすごみ
+	Weekday      int    `json:"weekday"`       // 0=日 .. 6=土
+	Frequency    string `json:"frequency"`     // weekly / nth_week
+	NthWeeks     []int  `json:"nth_weeks,omitempty"`
+	RawText      string `json:"raw_text"`
 }
 
 // Rule は rule パッケージの判定ロジックに渡せる形に変換する。
@@ -36,12 +35,10 @@ func (c CollectionRule) Rule() rule.Rule {
 // ListRulesByArea は地区の収集ルールを、種別 → 曜日の順で返す。
 func ListRulesByArea(ctx context.Context, db *sql.DB, areaID int) ([]CollectionRule, error) {
 	rows, err := db.QueryContext(ctx, `
-		SELECT r.id, r.area_id, w.code, w.name_ja, r.weekday, r.frequency, r.nth_weeks, r.collects_on_holiday, r.raw_text
+		SELECT r.id, r.area_id, w.code, w.name_ja, r.weekday, r.frequency, r.nth_weeks, r.raw_text
 		FROM collection_rules r
 		JOIN waste_categories w ON w.id = r.waste_category_id
 		WHERE r.area_id = ?
-		  AND (r.valid_from IS NULL OR r.valid_from <= CURDATE())
-		  AND (r.valid_to   IS NULL OR r.valid_to   >= CURDATE())
 		ORDER BY w.id, r.weekday`, areaID)
 	if err != nil {
 		return nil, err
@@ -52,7 +49,7 @@ func ListRulesByArea(ctx context.Context, db *sql.DB, areaID int) ([]CollectionR
 	for rows.Next() {
 		var c CollectionRule
 		var nth sql.NullString
-		if err := rows.Scan(&c.ID, &c.AreaID, &c.Category, &c.CategoryName, &c.Weekday, &c.Frequency, &nth, &c.CollectsOnHoliday, &c.RawText); err != nil {
+		if err := rows.Scan(&c.ID, &c.AreaID, &c.Category, &c.CategoryName, &c.Weekday, &c.Frequency, &nth, &c.RawText); err != nil {
 			return nil, err
 		}
 		if nth.Valid {

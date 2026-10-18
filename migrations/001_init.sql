@@ -1,7 +1,6 @@
 -- ゴミ出し支援API 初期スキーマ
 -- 初期化スクリプトは文字コード指定なしで流されるため、日本語を正しく保存するよう宣言する
 SET NAMES utf8mb4;
--- docs/tables.md の設計に対応。subscriptions / violation_reports / holidays は後のフェーズで追加する。
 
 -- A. 正解表 ---------------------------------------------------------------
 
@@ -21,8 +20,6 @@ CREATE TABLE areas (
   chome           VARCHAR(16)   NOT NULL COMMENT '丁目。1丁目 / 全域',
   block_range     VARCHAR(64)   NOT NULL DEFAULT '' COMMENT '番地範囲や注記。18番 / （品川エリア）',
   area_key        VARCHAR(191)  NOT NULL COMMENT '重複チェック用。code:town:chome:block_range',
-  lat             DECIMAL(9,6)  NULL,
-  lng             DECIMAL(9,6)  NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uq_areas_key (area_key),
   KEY idx_areas_municipality_town (municipality_id, town),
@@ -45,29 +42,13 @@ CREATE TABLE data_sources (
   id                 INT           NOT NULL AUTO_INCREMENT,
   municipality_id    INT           NOT NULL,
   resource_url       VARCHAR(512)  NOT NULL COMMENT 'CSVの実URL',
-  format             VARCHAR(16)   NOT NULL DEFAULT 'CSV',
   encoding           VARCHAR(16)   NOT NULL DEFAULT 'utf-8' COMMENT 'cp932 / utf-8 / utf-8-sig',
-  parser_key         VARCHAR(32)   NOT NULL COMMENT 'どのパーサーを使うか。shinagawa_v1',
   last_fetched_at    DATETIME      NULL COMMENT '最後に取り込んだ日時',
   PRIMARY KEY (id),
   KEY idx_data_sources_municipality (municipality_id),
   CONSTRAINT fk_data_sources_municipality FOREIGN KEY (municipality_id) REFERENCES municipalities (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
   COMMENT='オープンデータの取得元';
-
-CREATE TABLE import_jobs (
-  id             BIGINT       NOT NULL AUTO_INCREMENT,
-  data_source_id INT          NOT NULL,
-  started_at     DATETIME     NOT NULL,
-  finished_at    DATETIME     NULL,
-  status         ENUM('running','success','failed') NOT NULL,
-  rows_loaded    INT          NOT NULL DEFAULT 0,
-  error_message  TEXT         NULL,
-  PRIMARY KEY (id),
-  KEY idx_import_jobs_source_started (data_source_id, started_at),
-  CONSTRAINT fk_import_jobs_source FOREIGN KEY (data_source_id) REFERENCES data_sources (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
-  COMMENT='取り込み実行履歴';
 
 CREATE TABLE category_aliases (
   id                INT          NOT NULL AUTO_INCREMENT,
@@ -89,12 +70,8 @@ CREATE TABLE collection_rules (
   waste_category_id   INT          NOT NULL,
   data_source_id      INT          NOT NULL,
   weekday             TINYINT      NOT NULL COMMENT '0=日 .. 6=土',
-  frequency           ENUM('weekly','nth_week','biweekly') NOT NULL,
+  frequency           ENUM('weekly','nth_week') NOT NULL,
   nth_weeks           VARCHAR(16)  NULL COMMENT 'nth_week のとき "2,4"',
-  biweekly_anchor     DATE         NULL COMMENT 'biweekly のときの基準日',
-  collects_on_holiday BOOLEAN      NOT NULL DEFAULT TRUE,
-  valid_from          DATE         NULL,
-  valid_to            DATE         NULL,
   raw_text            VARCHAR(64)  NOT NULL COMMENT 'CSVの元の文字列。第２木・第４木',
   PRIMARY KEY (id),
   KEY idx_collection_rules_area (area_id),

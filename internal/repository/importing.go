@@ -57,44 +57,21 @@ func DeleteRulesBySource(ctx context.Context, tx *sql.Tx, sourceID int) error {
 
 // RuleRow は collection_rules に入れる1行。
 type RuleRow struct {
-	AreaID            int
-	WasteCategoryID   int
-	DataSourceID      int
-	Weekday           int
-	Frequency         string  // weekly / nth_week / biweekly
-	NthWeeks          *string // "2,4" または nil
-	CollectsOnHoliday bool
-	RawText           string
+	AreaID          int
+	WasteCategoryID int
+	DataSourceID    int
+	Weekday         int
+	Frequency       string  // weekly / nth_week
+	NthWeeks        *string // "2,4" または nil
+	RawText         string
 }
 
 // InsertRule は収集ルールを1行入れる(入れ替えの後半)。
 func InsertRule(ctx context.Context, tx *sql.Tx, r RuleRow) error {
 	_, err := tx.ExecContext(ctx, `
 		INSERT INTO collection_rules
-		  (area_id, waste_category_id, data_source_id, weekday, frequency, nth_weeks, collects_on_holiday, raw_text)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		r.AreaID, r.WasteCategoryID, r.DataSourceID, r.Weekday, r.Frequency, r.NthWeeks, r.CollectsOnHoliday, r.RawText)
-	return err
-}
-
-// StartImportJob は取り込み開始を記録し、その job id を返す。
-func StartImportJob(ctx context.Context, db *sql.DB, sourceID int) (int64, error) {
-	res, err := db.ExecContext(ctx,
-		`INSERT INTO import_jobs (data_source_id, started_at, status) VALUES (?, NOW(), 'running')`, sourceID)
-	if err != nil {
-		return 0, err
-	}
-	return res.LastInsertId()
-}
-
-// FinishImportJob は取り込み結果を記録する。status は success / failed。
-func FinishImportJob(ctx context.Context, db *sql.DB, jobID int64, status string, rowsLoaded int, errMsg string) error {
-	var msg *string
-	if errMsg != "" {
-		msg = &errMsg
-	}
-	_, err := db.ExecContext(ctx, `
-		UPDATE import_jobs SET finished_at = NOW(), status = ?, rows_loaded = ?, error_message = ?
-		WHERE id = ?`, status, rowsLoaded, msg, jobID)
+		  (area_id, waste_category_id, data_source_id, weekday, frequency, nth_weeks, raw_text)
+		VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		r.AreaID, r.WasteCategoryID, r.DataSourceID, r.Weekday, r.Frequency, r.NthWeeks, r.RawText)
 	return err
 }

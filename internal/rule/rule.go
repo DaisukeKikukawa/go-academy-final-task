@@ -8,9 +8,8 @@ import "time"
 type Frequency string
 
 const (
-	Weekly   Frequency = "weekly"   // 毎週
-	NthWeek  Frequency = "nth_week" // その月のN回目の曜日(第2・第4木曜など)
-	Biweekly Frequency = "biweekly" // 隔週(基準日から14日おき)
+	Weekly  Frequency = "weekly"   // 毎週
+	NthWeek Frequency = "nth_week" // その月のN回目の曜日(第2・第4木曜など)
 )
 
 // Rule は「ある曜日に、ある頻度で収集する」という1つのルール。

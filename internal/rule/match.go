@@ -3,7 +3,6 @@ package rule
 import "time"
 
 // Matches は日付 d がこのルールの収集日に当たるかを返す。
-// 祝日の扱いはここでは見ない(呼び出し側で判断する)。
 func (r Rule) Matches(d time.Time) bool {
 	if d.Weekday() != r.Weekday {
 		return false
@@ -18,10 +17,6 @@ func (r Rule) Matches(d time.Time) bool {
 				return true
 			}
 		}
-		return false
-	case Biweekly:
-		// 隔週は基準日が必要。基準日はDB側(biweekly_anchor)で持つ予定なので、
-		// Rule に基準日を足すまでは未対応として false を返す。
 		return false
 	}
 	return false

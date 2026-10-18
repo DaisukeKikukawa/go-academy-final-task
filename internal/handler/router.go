@@ -24,10 +24,8 @@ func NewRouter(s *Server) *gin.Engine {
 		v1.GET("/municipalities", s.listMunicipalities)
 		v1.GET("/municipalities/:code/areas", s.searchAreas)
 		v1.GET("/areas/:id", s.getArea)
-		v1.GET("/areas/:id/rules", s.listRules)
 		v1.GET("/areas/:id/schedule", s.getSchedule)
 		v1.GET("/areas/:id/today", s.getToday)
-		v1.GET("/areas/:id/next", s.getNext)
 	}
 	return r
 }

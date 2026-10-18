@@ -18,7 +18,5 @@ INSERT INTO category_aliases (municipality_id, raw_name, waste_category_id) VALU
   (1, '陶器・ガラス・金属ごみ', 2),
   (1, '資源',                   3);
 
-INSERT INTO data_sources (id, municipality_id, resource_url, format, encoding, parser_key) VALUES
-  (1, 1,
-   'http://www.city.shinagawa.tokyo.jp/ct/other000081600/gomisyusyubi.csv',
-   'CSV', 'cp932', 'shinagawa_v1');
+INSERT INTO data_sources (id, municipality_id, resource_url, encoding) VALUES
+  (1, 1, 'http://www.city.shinagawa.tokyo.jp/ct/other000081600/gomisyusyubi.csv', 'cp932');

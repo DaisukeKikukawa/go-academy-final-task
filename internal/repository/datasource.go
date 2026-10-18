@@ -10,17 +10,14 @@ type DataSource struct {
 	ID               int
 	MunicipalityID   int
 	MunicipalityCode string // 13109
-	ResourceURL      string
-	Format           string
-	Encoding         string
-	ParserKey        string
+	ResourceURL      string // CSV の URL
+	Encoding         string // cp932 / utf-8 / utf-8-sig
 }
 
 // ListDataSources は取得元をすべて返す(importer が上から順に処理する)。
 func ListDataSources(ctx context.Context, db *sql.DB) ([]DataSource, error) {
 	rows, err := db.QueryContext(ctx, `
-		SELECT d.id, d.municipality_id, m.code, d.resource_url,
-		       d.format, d.encoding, d.parser_key
+		SELECT d.id, d.municipality_id, m.code, d.resource_url, d.encoding
 		FROM data_sources d
 		JOIN municipalities m ON m.id = d.municipality_id
 		ORDER BY d.id`)
@@ -32,8 +29,7 @@ func ListDataSources(ctx context.Context, db *sql.DB) ([]DataSource, error) {
 	var out []DataSource
 	for rows.Next() {
 		var d DataSource
-		if err := rows.Scan(&d.ID, &d.MunicipalityID, &d.MunicipalityCode, &d.ResourceURL,
-			&d.Format, &d.Encoding, &d.ParserKey); err != nil {
+		if err := rows.Scan(&d.ID, &d.MunicipalityID, &d.MunicipalityCode, &d.ResourceURL, &d.Encoding); err != nil {
 			return nil, err
 		}
 		out = append(out, d)

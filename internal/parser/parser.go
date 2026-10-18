@@ -1,10 +1,8 @@
-// Package parser は自治体ごとに形式の違う収集日CSVを、共通の Row に変換する。
-// 自治体を追加するときは Parser を実装する型を1つ足す。
+// Package parser は収集日CSVを、共通の Row に変換する。
 package parser
 
 import (
 	"fmt"
-	"io"
 	"regexp"
 
 	"github.com/DaisukeKikukawa/go-academy-final-task/internal/rule"
@@ -13,12 +11,11 @@ import (
 // Row はCSV1行から得られる「ある地区の、あるごみ種別の、1つの収集ルール」。
 // "火・金" のように曜日が2つある行は Row も2つになる。
 type Row struct {
-	Town              string    // 大井
-	Chome             string    // 1丁目(無ければ "全域")
-	BlockRange        string    // 18番、1～10番 など。無ければ空
-	RawCategory       string    // CSVに書かれていたごみ種別名(燃やすごみ など)。共通コードへの変換は取り込み側で行う
-	Rule              rule.Rule // 曜日と頻度
-	CollectsOnHoliday bool
+	Town        string    // 大井
+	Chome       string    // 1丁目(無ければ "全域")
+	BlockRange  string    // 18番、1～10番 など。無ければ空
+	RawCategory string    // CSVに書かれていたごみ種別名(燃やすごみ など)。共通コードへの変換は取り込み側で行う
+	Rule        rule.Rule // 曜日と頻度
 }
 
 // AreaName は Town + Chome + BlockRange を結合した表示用の地区名。
@@ -41,12 +38,6 @@ func (e LineError) Error() string {
 type Result struct {
 	Rows   []Row
 	Errors []LineError
-}
-
-// Parser は自治体ごとのCSV変換処理。入力は UTF-8 に変換済みの読み口を渡す。
-// 返り値の error はヘッダ不正など「ファイル全体として読めない」場合のみ。
-type Parser interface {
-	Parse(r io.Reader) (*Result, error)
 }
 
 // areaPattern は「大井1丁目」「南大井6丁目18番」「西品川1丁目（品川エリア）」を

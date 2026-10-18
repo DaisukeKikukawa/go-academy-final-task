@@ -15,10 +15,7 @@ import (
 const (
 	defaultScheduleDays = 30 // from/to 未指定のときの期間
 	maxScheduleDays     = 92 // 一度に返す最大日数(約3ヶ月)
-	maxNextSearchDays   = 60 // next が探す最大日数
 )
-
-var weekdayJa = []string{"日", "月", "火", "水", "木", "金", "土"}
 
 // loadRules は地区の存在確認とルール取得をまとめて行う。失敗時はレスポンス済みで nil を返す。
 func (s *Server) loadRules(c *gin.Context) (*repository.Area, []repository.CollectionRule) {
@@ -64,7 +61,7 @@ func (s *Server) getSchedule(c *gin.Context) {
 		return
 	}
 
-	days := schedule.Expand(rules, from, to, schedule.NoHolidays)
+	days := schedule.Expand(rules, from, to)
 	c.JSON(http.StatusOK, gin.H{
 		"area": area,
 		"from": from.Format("2006-01-02"),
@@ -81,8 +78,8 @@ func (s *Server) getToday(c *gin.Context) {
 	}
 	today := schedule.Today()
 	tomorrow := today.AddDate(0, 0, 1)
-	todayItems := schedule.ItemsOn(rules, today, schedule.NoHolidays)
-	tomorrowItems := schedule.ItemsOn(rules, tomorrow, schedule.NoHolidays)
+	todayItems := schedule.ItemsOn(rules, today)
+	tomorrowItems := schedule.ItemsOn(rules, tomorrow)
 
 	c.JSON(http.StatusOK, gin.H{
 		"area":     area,
@@ -91,35 +88,6 @@ func (s *Server) getToday(c *gin.Context) {
 		"today":    todayItems,
 		"tomorrow": tomorrowItems,
 		"message":  todayMessage(todayItems, tomorrowItems),
-	})
-}
-
-// GET /v1/areas/:id/next?category=non_burnable
-func (s *Server) getNext(c *gin.Context) {
-	area, rules := s.loadRules(c)
-	if area == nil {
-		return
-	}
-	category := c.Query("category")
-	if category == "" {
-		errorJSON(c, http.StatusBadRequest, "missing_category", "category を指定してください(例: non_burnable)")
-		return
-	}
-	today := schedule.Today()
-	next, ok := schedule.Next(rules, today, category, maxNextSearchDays, schedule.NoHolidays)
-	if !ok {
-		errorJSON(c, http.StatusNotFound, "no_collection",
-			fmt.Sprintf("この地区では %s の収集が %d 日以内に見つかりません", category, maxNextSearchDays))
-		return
-	}
-	daysUntil := int(next.Sub(today).Hours() / 24)
-	c.JSON(http.StatusOK, gin.H{
-		"area":       area,
-		"category":   category,
-		"next_date":  next.Format("2006-01-02"),
-		"weekday":    int(next.Weekday()),
-		"days_until": daysUntil,
-		"message":    nextMessage(category, rules, next, daysUntil),
 	})
 }
 
@@ -137,25 +105,6 @@ func todayMessage(today, tomorrow []schedule.Item) string {
 		sb.WriteString("明日は" + joinNames(tomorrow) + "の日です。前の晩には出さないでください。")
 	}
 	return sb.String()
-}
-
-func nextMessage(category string, rules []repository.CollectionRule, next time.Time, daysUntil int) string {
-	name := category
-	for _, r := range rules {
-		if r.Category == category {
-			name = r.CategoryName
-			break
-		}
-	}
-	when := fmt.Sprintf("%d月%d日(%s)", int(next.Month()), next.Day(), weekdayJa[next.Weekday()])
-	switch daysUntil {
-	case 0:
-		return "今日が" + name + "の日です。"
-	case 1:
-		return "明日 " + when + " が" + name + "の日です。"
-	default:
-		return fmt.Sprintf("次の%sの日は %s、%d日後です。", name, when, daysUntil)
-	}
 }
 
 func joinNames(items []schedule.Item) string {
