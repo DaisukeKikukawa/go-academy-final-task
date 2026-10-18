@@ -14,10 +14,10 @@ import (
 type CollectionRule struct {
 	ID                int64  `json:"id"`
 	AreaID            int    `json:"area_id"`
-	Category          string `json:"category"`    // burnable など
+	Category          string `json:"category"`      // burnable など
 	CategoryName      string `json:"category_name"` // 燃やすごみ
-	Weekday           int    `json:"weekday"`     // 0=日 .. 6=土
-	Frequency         string `json:"frequency"`   // weekly / nth_week / biweekly
+	Weekday           int    `json:"weekday"`       // 0=日 .. 6=土
+	Frequency         string `json:"frequency"`     // weekly / nth_week / biweekly
 	NthWeeks          []int  `json:"nth_weeks,omitempty"`
 	CollectsOnHoliday bool   `json:"collects_on_holiday"`
 	RawText           string `json:"raw_text"`

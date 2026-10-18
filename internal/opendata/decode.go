@@ -1,4 +1,4 @@
-// Package opendata は東京都オープンデータの取得まわり(文字コード変換、CSV取得、CKAN API)を扱う。
+// Package opendata は東京都オープンデータの取得まわり(文字コード変換)を扱う。
 package opendata
 
 import (

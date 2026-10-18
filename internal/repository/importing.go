@@ -87,7 +87,7 @@ func StartImportJob(ctx context.Context, db *sql.DB, sourceID int) (int64, error
 	return res.LastInsertId()
 }
 
-// FinishImportJob は取り込み結果を記録する。status は success / failed / skipped。
+// FinishImportJob は取り込み結果を記録する。status は success / failed。
 func FinishImportJob(ctx context.Context, db *sql.DB, jobID int64, status string, rowsLoaded int, errMsg string) error {
 	var msg *string
 	if errMsg != "" {

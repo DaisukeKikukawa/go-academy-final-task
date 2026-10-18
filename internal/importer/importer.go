@@ -1,19 +1,18 @@
 // Package importer はオープンデータを取得し、変換して MySQL に入れる一連の流れをまとめる。
 //
 //	取得(Fetch) → 文字コード変換 → パーサー → 種別の共通コード化 → 地区登録 → ルール入れ替え → 履歴記録
+//
+// 毎回取り直して入れ替える(冪等)ので、cron で毎日実行すれば常に最新になる。
 package importer
 
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/DaisukeKikukawa/go-academy-final-task/internal/opendata"
 	"github.com/DaisukeKikukawa/go-academy-final-task/internal/parser"
@@ -27,18 +26,15 @@ type Fetcher func(ctx context.Context, url string) (io.ReadCloser, error)
 type Importer struct {
 	DB    *sql.DB
 	Fetch Fetcher
-	CKAN  *opendata.CKANClient // nil なら更新日時チェックを行わない(開発時のローカルファイル取り込み)
 }
 
 // Summary は1回の取り込みの結果。
 type Summary struct {
 	JobID      int64
-	Status     string // success / failed / skipped
-	Reason     string // skipped の理由(catalog-unchanged / content-unchanged)
+	Status     string // success / failed
 	RulesSaved int
 	Areas      int
 	LineErrors []parser.LineError
-	Warnings   []string // 致命的ではないが記録したいこと(CKAN に繋がらなかった等)
 }
 
 // Run は取得元 ds を取り込む。失敗しても import_jobs に記録してから error を返す。
@@ -55,33 +51,14 @@ func (im *Importer) Run(ctx context.Context, ds repository.DataSource) (Summary,
 		_ = repository.FinishImportJob(ctx, im.DB, jobID, "failed", 0, err.Error())
 		return sum, err
 	}
-	note := strings.TrimSpace(strings.Join(append(sum.Warnings, joinLineErrors(sum.LineErrors)), "\n"))
-	if err := repository.FinishImportJob(ctx, im.DB, jobID, sum.Status, sum.RulesSaved, note); err != nil {
+	if err := repository.FinishImportJob(ctx, im.DB, jobID, sum.Status, sum.RulesSaved, joinLineErrors(sum.LineErrors)); err != nil {
 		return sum, fmt.Errorf("import_jobs に結果を記録できません: %w", err)
 	}
 	return sum, nil
 }
 
 func (im *Importer) run(ctx context.Context, ds repository.DataSource, sum Summary) (Summary, error) {
-	// 0. カタログ側の更新日時を見て、前回取り込み時から変わっていなければ CSV を取りに行かない
-	var remoteModified *time.Time
-	if im.CKAN != nil && ds.CKANPackageID != "" {
-		info, err := im.CKAN.PackageShow(ctx, ds.CKANPackageID)
-		if err != nil {
-			// カタログに繋がらなくても CSV 本体の取得は試す(ハッシュ比較で二重取り込みは防げる)
-			sum.Warnings = append(sum.Warnings, "CKAN 確認失敗: "+err.Error())
-		} else {
-			// DB の DATETIME は秒までしか持たないので、比較も保存も秒に丸めた値で行う
-			t := info.MetadataModified.Truncate(time.Second)
-			remoteModified = &t
-			if ds.RemoteModifiedAt.Valid && ds.RemoteModifiedAt.Time.Equal(t) {
-				sum.Status, sum.Reason = "skipped", "catalog-unchanged"
-				return sum, nil
-			}
-		}
-	}
-
-	// 1. 取得。本文はハッシュ計算と変換の両方で使うので一度メモリに持つ(数十KB)
+	// 1. 取得(数十KB なので一度メモリに持つ)
 	body, err := im.Fetch(ctx, ds.ResourceURL)
 	if err != nil {
 		return sum, fmt.Errorf("取得失敗 %s: %w", ds.ResourceURL, err)
@@ -91,18 +68,8 @@ func (im *Importer) run(ctx context.Context, ds repository.DataSource, sum Summa
 	if err != nil {
 		return sum, fmt.Errorf("本文の読み込み失敗: %w", err)
 	}
-	hash := sha256Hex(raw)
 
-	// 2. 前回と本文が同じなら、ルールは触らず skipped(カタログの更新日時だけ控えておく)
-	if ds.ContentHash.Valid && ds.ContentHash.String == hash {
-		sum.Status, sum.Reason = "skipped", "content-unchanged"
-		if err := repository.MarkDataSourceFetched(ctx, im.DB, ds.ID, hash, remoteModified); err != nil {
-			return sum, err
-		}
-		return sum, nil
-	}
-
-	// 3. 文字コード変換 → パーサー
+	// 2. 文字コード変換 → パーサー
 	utf8r, err := opendata.NewUTF8Reader(bytes.NewReader(raw), ds.Encoding)
 	if err != nil {
 		return sum, err
@@ -120,7 +87,7 @@ func (im *Importer) run(ctx context.Context, ds repository.DataSource, sum Summa
 		return sum, fmt.Errorf("変換できた行が0件です(行エラー %d件)", len(res.Errors))
 	}
 
-	// 4. ここから DB 書き込み。全部まとめて1トランザクション
+	// 3. ここから DB 書き込み。全部まとめて1トランザクション
 	tx, err := im.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return sum, err
@@ -165,7 +132,7 @@ func (im *Importer) run(ctx context.Context, ds repository.DataSource, sum Summa
 	}
 	sum.Areas = len(areaIDs)
 
-	if err := repository.MarkDataSourceFetched(ctx, tx, ds.ID, hash, remoteModified); err != nil {
+	if err := repository.MarkDataSourceFetched(ctx, tx, ds.ID); err != nil {
 		return sum, err
 	}
 	if err := tx.Commit(); err != nil {
@@ -186,11 +153,6 @@ func nthWeeksString(ns []int) *string {
 	}
 	s := strings.Join(parts, ",")
 	return &s
-}
-
-func sha256Hex(b []byte) string {
-	h := sha256.Sum256(b)
-	return hex.EncodeToString(h[:])
 }
 
 func joinLineErrors(errs []parser.LineError) string {

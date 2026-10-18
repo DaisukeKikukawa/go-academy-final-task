@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/DaisukeKikukawa/go-academy-final-task/internal/importer"
-	"github.com/DaisukeKikukawa/go-academy-final-task/internal/opendata"
 	"github.com/DaisukeKikukawa/go-academy-final-task/internal/repository"
 )
 
@@ -27,17 +26,12 @@ func main() {
 	}
 	defer db.Close()
 
-	im := &importer.Importer{
-		DB:    db,
-		Fetch: importer.HTTPFetcher(60 * time.Second),
-		CKAN:  opendata.NewCKANClient(30 * time.Second),
-	}
+	im := &importer.Importer{DB: db, Fetch: importer.HTTPFetcher(60 * time.Second)}
 	if *file != "" {
 		if *sourceID == 0 {
 			log.Fatal("-file を使うときは -source も指定してください")
 		}
 		im.Fetch = importer.FileFetcher(*file)
-		im.CKAN = nil // ローカルファイルのときはカタログを見ない
 	}
 
 	sources, err := repository.ListDataSources(ctx, db)
@@ -56,8 +50,8 @@ func main() {
 			log.Printf("[source %d] FAILED (job %d): %v", ds.ID, sum.JobID, err)
 			continue
 		}
-		log.Printf("[source %d] %s %s (job %d): rules=%d areas=%d lineErrors=%d warnings=%d",
-			ds.ID, sum.Status, sum.Reason, sum.JobID, sum.RulesSaved, sum.Areas, len(sum.LineErrors), len(sum.Warnings))
+		log.Printf("[source %d] %s (job %d): rules=%d areas=%d lineErrors=%d",
+			ds.ID, sum.Status, sum.JobID, sum.RulesSaved, sum.Areas, len(sum.LineErrors))
 	}
 	if failed > 0 {
 		log.Fatalf("%d 件の取得元が失敗しました", failed)
