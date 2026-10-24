@@ -1,36 +1,40 @@
 package main
 
 import (
-	"context"
+	"database/sql"
+	"fmt"
 	"log"
 	"os"
 
+	"github.com/gin-gonic/gin"
+	_ "github.com/go-sql-driver/mysql"
+
 	"github.com/DaisukeKikukawa/go-academy-final-task/internal/handler"
 	"github.com/DaisukeKikukawa/go-academy-final-task/internal/repository"
+	"github.com/DaisukeKikukawa/go-academy-final-task/internal/service"
 )
 
 func main() {
-	ctx := context.Background()
-
-	cfg := repository.ConfigFromEnv()
-	db, err := repository.Open(ctx, cfg)
+	db, err := sql.Open("mysql", dsn())
 	if err != nil {
-		log.Fatalf("DB に接続できません: %v", err)
-	}
-	defer db.Close()
-	log.Printf("db connected: %s:%s/%s", cfg.Host, cfg.Port, cfg.Name)
-
-	addr := ":" + envOr("PORT", "8080")
-	r := handler.NewRouter(&handler.Server{DB: db})
-	log.Printf("listening on %s", addr)
-	if err := r.Run(addr); err != nil {
 		log.Fatal(err)
 	}
+	defer db.Close()
+
+	h := handler.New(service.New(repository.New(db)))
+	r := gin.Default()
+	h.Register(r)
+	log.Fatal(r.Run(":" + env("PORT", "8080")))
 }
 
-func envOr(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
+func env(k, def string) string {
+	if v := os.Getenv(k); v != "" {
 		return v
 	}
-	return fallback
+	return def
+}
+
+func dsn() string {
+	return fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&loc=Asia%%2FTokyo&charset=utf8mb4",
+		env("DB_USER", "user"), env("DB_PASSWORD", "password"), env("DB_HOST", "127.0.0.1"), env("DB_PORT", "3306"), env("DB_NAME", "gomi"))
 }
