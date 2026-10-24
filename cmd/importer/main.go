@@ -18,7 +18,6 @@ import (
 	"github.com/DaisukeKikukawa/go-academy-final-task/internal/rule"
 )
 
-// ステップ1: importer の準備
 const (
 	municipalityCode = "13109"
 	csvURL           = "http://www.city.shinagawa.tokyo.jp/ct/other000081600/gomisyusyubi.csv"
